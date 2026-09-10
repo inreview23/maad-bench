@@ -1,0 +1,512 @@
+{
+  "representation": "handcrafted",
+  "metric": "auc_roc",
+  "setting": "secondary",
+  "coverage": {
+    "esc50": {
+      "folds_": 5,
+      "detectors": 25
+    },
+    "icbhi": {
+      "folds_": 5,
+      "detectors": 25
+    },
+    "mimii": {
+      "folds_": 4,
+      "detectors": 25
+    },
+    "nsynth": {
+      "folds_": 5,
+      "detectors": 25
+    },
+    "physionet": {
+      "folds_": 6,
+      "detectors": 25
+    },
+    "ravdess": {
+      "folds_": 24,
+      "detectors": 25
+    },
+    "urbansound8k": {
+      "folds_": 10,
+      "detectors": 25
+    }
+  },
+  "best_per_dataset": [
+    {
+      "dataset": "mimii",
+      "detector": "DIF",
+      "mean": 0.9186602907963288,
+      "std": 0.03176353102145554,
+      "min": 0.8886665770247859,
+      "max": 0.9462497740827761,
+      "count": 4
+    },
+    {
+      "dataset": "ravdess",
+      "detector": "COF",
+      "mean": 0.9172309027777779,
+      "std": 0.0986486760637232,
+      "min": 0.665625,
+      "max": 1.0,
+      "count": 24
+    },
+    {
+      "dataset": "urbansound8k",
+      "detector": "MCD",
+      "mean": 0.8104177633167904,
+      "std": 0.03742434441441884,
+      "min": 0.7531727379553466,
+      "max": 0.8841922408801389,
+      "count": 10
+    },
+    {
+      "dataset": "esc50",
+      "detector": "AutoEncoder",
+      "mean": 0.6516041666666667,
+      "std": 0.02905826208647228,
+      "min": 0.6198958333333333,
+      "max": 0.68625,
+      "count": 5
+    },
+    {
+      "dataset": "nsynth",
+      "detector": "OCSVM",
+      "mean": 0.5903063916700074,
+      "std": 0.1971909617448718,
+      "min": 0.27546697138219584,
+      "max": 0.8050877468472322,
+      "count": 5
+    },
+    {
+      "dataset": "physionet",
+      "detector": "SOD",
+      "mean": 0.5888460980925215,
+      "std": 0.0759806419279896,
+      "min": 0.5255928656835392,
+      "max": 0.7352696238494729,
+      "count": 6
+    },
+    {
+      "dataset": "icbhi",
+      "detector": "LOF",
+      "mean": 0.4823055036760616,
+      "std": 0.03620326458026384,
+      "min": 0.4446060157790927,
+      "max": 0.5372434767944266,
+      "count": 5
+    }
+  ],
+  "fold_reliability": {
+    "esc50": {
+      "n_folds": 5,
+      "mean_pairwise_rho": 0.2893,
+      "reliability": 0.6705,
+      "splithalf_reliability": 0.7666
+    },
+    "icbhi": {
+      "n_folds": 5,
+      "mean_pairwise_rho": 0.2503,
+      "reliability": 0.6254,
+      "splithalf_reliability": 0.7952
+    },
+    "mimii": {
+      "n_folds": 4,
+      "mean_pairwise_rho": 0.3488,
+      "reliability": 0.6818,
+      "splithalf_reliability": 0.668
+    },
+    "nsynth": {
+      "n_folds": 5,
+      "mean_pairwise_rho": 0.3522,
+      "reliability": 0.731,
+      "splithalf_reliability": 0.62
+    },
+    "physionet": {
+      "n_folds": 6,
+      "mean_pairwise_rho": 0.004,
+      "reliability": 0.0235,
+      "splithalf_reliability": -1.5422
+    },
+    "ravdess": {
+      "n_folds": 24,
+      "mean_pairwise_rho": 0.3128,
+      "reliability": 0.9161,
+      "splithalf_reliability": 0.9518
+    },
+    "urbansound8k": {
+      "n_folds": 10,
+      "mean_pairwise_rho": 0.7205,
+      "reliability": 0.9627,
+      "splithalf_reliability": 0.9691
+    }
+  },
+  "ceiling": {
+    "mean_ceiling": 0.5798976979433911,
+    "mean_observed": -0.018644688644688646,
+    "n_reaching": 2,
+    "n_pairs": 21,
+    "min_observed": -0.5107692307692308
+  },
+  "transfer": {
+    "full": {
+      "rho": -0.09846153846153846,
+      "p": 0.6396101242558595,
+      "n_detectors": 25,
+      "ci_lo": -0.47510825726908823,
+      "ci_hi": 0.30867856024975493,
+      "designated": [
+        "esc50",
+        "urbansound8k",
+        "ravdess",
+        "nsynth"
+      ],
+      "organic": [
+        "mimii",
+        "physionet",
+        "icbhi"
+      ]
+    },
+    "leave_one_organic_out": {
+      "mimii": {
+        "rho": -0.5623076923076923,
+        "p": 0.00343667261252863,
+        "n_detectors": 25,
+        "ci_lo": -0.7833826126065369,
+        "ci_hi": -0.2149313454460755,
+        "designated": [
+          "esc50",
+          "urbansound8k",
+          "ravdess",
+          "nsynth"
+        ],
+        "organic": [
+          "physionet",
+          "icbhi"
+        ]
+      },
+      "physionet": {
+        "rho": -0.023846153846153843,
+        "p": 0.9099177127623183,
+        "n_detectors": 25,
+        "ci_lo": -0.4150661531307927,
+        "ci_hi": 0.37481639702374164,
+        "designated": [
+          "esc50",
+          "urbansound8k",
+          "ravdess",
+          "nsynth"
+        ],
+        "organic": [
+          "mimii",
+          "icbhi"
+        ]
+      },
+      "icbhi": {
+        "rho": -0.04769230769230769,
+        "p": 0.8209045857929845,
+        "n_detectors": 25,
+        "ci_lo": -0.43463268204177435,
+        "ci_hi": 0.3541117217967806,
+        "designated": [
+          "esc50",
+          "urbansound8k",
+          "ravdess",
+          "nsynth"
+        ],
+        "organic": [
+          "mimii",
+          "physionet"
+        ]
+      }
+    },
+    "per_organic_dataset": {
+      "mimii": {
+        "rho": -0.061538461538461535,
+        "p": 0.7701210708628822
+      },
+      "physionet": {
+        "rho": -0.5353846153846153,
+        "p": 0.00581642313938255
+      },
+      "icbhi": {
+        "rho": -0.18384615384615385,
+        "p": 0.3790206919993311
+      }
+    }
+  },
+  "friedman": {
+    "n_blocks": 7,
+    "n_detectors": 25,
+    "chi2": 21.315164835164865,
+    "p": 0.6200702592102165,
+    "critical_difference": 14.389946935062447,
+    "best_detector": "MCD",
+    "best_avg_rank": 7.714285714285714,
+    "worst_detector": "ABOD",
+    "worst_avg_rank": 17.428571428571427,
+    "largest_gap": 9.714285714285712,
+    "n_within_cd_of_best": 25,
+    "n_separated_pairs": 0,
+    "avg_ranks": {
+      "MCD": 7.714285714285714,
+      "GMM": 8.571428571428571,
+      "CBLOF": 9.714285714285714,
+      "AutoEncoder": 10.285714285714286,
+      "INNE": 10.857142857142858,
+      "QMCD": 11.285714285714286,
+      "Sampling": 11.285714285714286,
+      "OCSVM": 11.571428571428571,
+      "COPOD": 12.142857142857142,
+      "KPCA": 12.428571428571429,
+      "KNN": 12.571428571428571,
+      "VAE": 12.571428571428571,
+      "LMDD": 12.714285714285714,
+      "IForest": 13.0,
+      "DIF": 13.0,
+      "SOD": 13.571428571428571,
+      "LUNAR": 14.142857142857142,
+      "KDE": 14.142857142857142,
+      "LOF": 14.285714285714286,
+      "COF": 15.0,
+      "ECOD": 15.285714285714286,
+      "PCA": 16.714285714285715,
+      "HBOS": 17.285714285714285,
+      "LODA": 17.428571428571427,
+      "ABOD": 17.428571428571427
+    }
+  },
+  "permutation": {
+    "statistic": 6.5975510204081615,
+    "p": 0.6356682165891705,
+    "n_blocks": 7,
+    "n_detectors": 25,
+    "n_perm": 20000
+  },
+  "winner_null": {
+    "observed_distinct_winners": 7,
+    "n_blocks": 7,
+    "n_detectors": 25,
+    "expected_under_null": 6.2138130472960045,
+    "p_at_least_observed": 0.39693975552000005,
+    "winners": {
+      "esc50": "AutoEncoder",
+      "icbhi": "LOF",
+      "mimii": "DIF",
+      "nsynth": "OCSVM",
+      "physionet": "SOD",
+      "ravdess": "COF",
+      "urbansound8k": "MCD"
+    }
+  },
+  "group_shift": [
+    {
+      "dataset": "mimii",
+      "group": 0,
+      "n_test_normal": 1006,
+      "n_test_anom": 143,
+      "normal_centroid_dist": 10.143055374289414,
+      "anom_centroid_dist": 16.55677518443075,
+      "radial_auc": 0.7508862906477219,
+      "normal_over_anom_ratio": 0.6126226430752946
+    },
+    {
+      "dataset": "mimii",
+      "group": 2,
+      "n_test_normal": 1005,
+      "n_test_anom": 111,
+      "normal_centroid_dist": 4.908982371634657,
+      "anom_centroid_dist": 6.564242863879328,
+      "radial_auc": 0.7471740397113531,
+      "normal_over_anom_ratio": 0.7478367990689413
+    },
+    {
+      "dataset": "mimii",
+      "group": 4,
+      "n_test_normal": 702,
+      "n_test_anom": 100,
+      "normal_centroid_dist": 15.839051758840682,
+      "anom_centroid_dist": 10.909006258047233,
+      "radial_auc": 0.12572649572649572,
+      "normal_over_anom_ratio": 1.451924344360579
+    },
+    {
+      "dataset": "mimii",
+      "group": 6,
+      "n_test_normal": 1036,
+      "n_test_anom": 102,
+      "normal_centroid_dist": 12.287211059639215,
+      "anom_centroid_dist": 12.12086867860474,
+      "radial_auc": 0.59199220228632,
+      "normal_over_anom_ratio": 1.0137236352810337
+    },
+    {
+      "dataset": "physionet",
+      "group": 0,
+      "n_test_normal": 117,
+      "n_test_anom": 292,
+      "normal_centroid_dist": 4.352501027474063,
+      "anom_centroid_dist": 3.8740329544568355,
+      "radial_auc": 0.5193185809624166,
+      "normal_over_anom_ratio": 1.1235064540343622
+    },
+    {
+      "dataset": "physionet",
+      "group": 1,
+      "n_test_normal": 386,
+      "n_test_anom": 104,
+      "normal_centroid_dist": 12.341452777601997,
+      "anom_centroid_dist": 11.846893287943422,
+      "radial_auc": 0.3900707453168593,
+      "normal_over_anom_ratio": 1.0417459225501666
+    },
+    {
+      "dataset": "physionet",
+      "group": 2,
+      "n_test_normal": 7,
+      "n_test_anom": 24,
+      "normal_centroid_dist": 6.03032277269203,
+      "anom_centroid_dist": 5.585829385030271,
+      "radial_auc": 0.9404761904761905,
+      "normal_over_anom_ratio": 1.0795751815930823
+    },
+    {
+      "dataset": "physionet",
+      "group": 3,
+      "n_test_normal": 27,
+      "n_test_anom": 28,
+      "normal_centroid_dist": 6.850615584234712,
+      "anom_centroid_dist": 6.291026342180107,
+      "radial_auc": 0.3862433862433863,
+      "normal_over_anom_ratio": 1.0889503892715673
+    },
+    {
+      "dataset": "physionet",
+      "group": 4,
+      "n_test_normal": 1958,
+      "n_test_anom": 183,
+      "normal_centroid_dist": 8.129508274155372,
+      "anom_centroid_dist": 5.996238217656218,
+      "radial_auc": 0.11302935414189788,
+      "normal_over_anom_ratio": 1.3557680630862254
+    },
+    {
+      "dataset": "physionet",
+      "group": 5,
+      "n_test_normal": 80,
+      "n_test_anom": 34,
+      "normal_centroid_dist": 40.046354143523125,
+      "anom_centroid_dist": 36.81722832984147,
+      "radial_auc": 0.2647058823529412,
+      "normal_over_anom_ratio": 1.087706923094598
+    },
+    {
+      "dataset": "icbhi",
+      "group": 0,
+      "n_test_normal": 891,
+      "n_test_anom": 772,
+      "normal_centroid_dist": 1.2098074988064502,
+      "anom_centroid_dist": 1.5935920029957291,
+      "radial_auc": 0.41412106092589684,
+      "normal_over_anom_ratio": 0.7591701618307459
+    },
+    {
+      "dataset": "icbhi",
+      "group": 1,
+      "n_test_normal": 600,
+      "n_test_anom": 676,
+      "normal_centroid_dist": 1.19351407146427,
+      "anom_centroid_dist": 2.018811068367929,
+      "radial_auc": 0.4294354043392505,
+      "normal_over_anom_ratio": 0.5911965166850134
+    },
+    {
+      "dataset": "icbhi",
+      "group": 2,
+      "n_test_normal": 703,
+      "n_test_anom": 553,
+      "normal_centroid_dist": 1.2264480636187292,
+      "anom_centroid_dist": 1.5775259975159655,
+      "radial_auc": 0.44394341995940934,
+      "normal_over_anom_ratio": 0.7774503022770735
+    },
+    {
+      "dataset": "icbhi",
+      "group": 3,
+      "n_test_normal": 887,
+      "n_test_anom": 890,
+      "normal_centroid_dist": 1.0581480603640752,
+      "anom_centroid_dist": 2.5552750059225415,
+      "radial_auc": 0.5026069442509152,
+      "normal_over_anom_ratio": 0.4141033970557105
+    },
+    {
+      "dataset": "icbhi",
+      "group": 4,
+      "n_test_normal": 561,
+      "n_test_anom": 365,
+      "normal_centroid_dist": 2.8595787264154486,
+      "anom_centroid_dist": 2.3525014218619145,
+      "radial_auc": 0.34237784777671965,
+      "normal_over_anom_ratio": 1.215548139457532
+    }
+  ],
+  "chance_test": {
+    "esc50": {
+      "lo": 0.5237291666666667,
+      "hi": 0.6516041666666667,
+      "n_below": 0,
+      "n_above": 22,
+      "n": 25,
+      "verdict": "solved"
+    },
+    "icbhi": {
+      "lo": 0.4122409756939325,
+      "hi": 0.4823055036760616,
+      "n_below": 22,
+      "n_above": 0,
+      "n": 25,
+      "verdict": "inverted"
+    },
+    "mimii": {
+      "lo": 0.343256838808396,
+      "hi": 0.9186602907963288,
+      "n_below": 1,
+      "n_above": 3,
+      "n": 25,
+      "verdict": "solved"
+    },
+    "nsynth": {
+      "lo": 0.35550653376214003,
+      "hi": 0.5903063916700074,
+      "n_below": 2,
+      "n_above": 1,
+      "n": 25,
+      "verdict": "at chance"
+    },
+    "physionet": {
+      "lo": 0.4334056171873711,
+      "hi": 0.5888460980925215,
+      "n_below": 0,
+      "n_above": 1,
+      "n": 25,
+      "verdict": "at chance"
+    },
+    "ravdess": {
+      "lo": 0.7075086805555556,
+      "hi": 0.9172309027777779,
+      "n_below": 0,
+      "n_above": 25,
+      "n": 25,
+      "verdict": "solved"
+    },
+    "urbansound8k": {
+      "lo": 0.483948669048582,
+      "hi": 0.8104177633167904,
+      "n_below": 0,
+      "n_above": 24,
+      "n": 25,
+      "verdict": "solved"
+    }
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "protocol": "leave-one-group-out",
+  "subsample_test": false,
+  "groups": [
+    1,
+    2,
+    3,
+    4,
+    5
+  ],
+  "settings": [
+    "primary",
+    "secondary"
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "contamination_train_side": 0.1,
+  "n_features": 74,
+  "n_skipped_single_class_folds": 0,
+  "elapsed_sec": 53.9
+}

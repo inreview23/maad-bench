@@ -4,7 +4,7 @@ Times fit + decision_function for each detector on each sub-dataset (primary
 split, seed 0) reusing the CACHED features, so no audio is re-read. Writes
 results/runtime.csv with [dataset, detector, seconds, n_train, n_features]. This
 gives the classical-vs-neural cost tradeoff for the paper. Neural detectors use
-the GPU, so run this when the GPU is free. Run from ~/projects/maad-bench/.
+the GPU, so run this from the repository root when the GPU is free.
 """
 import os
 import sys

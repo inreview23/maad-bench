@@ -1,12 +1,27 @@
-"""Print best primary AUC + detector per dataset for each arm, plus judge breakdown.
-Used to fill the temporal/representation tables and the judge/acoustics sections."""
+"""Print the best primary AUC and its detector per sub-dataset for each arm.
+
+Fills the representation and temporal table cells. Reads the group-rotated
+outputs; set MAAD_NUMS_SOURCE=v1 to read the fixed-group ones instead.
+
+Two v1 problems fixed here. RES was the relative string "results", so the script
+silently read nothing unless run from the repository root. And the judge
+breakdown is gone with Section VII, whose 10/10 and 19/19 came from a prompt that
+named the normal classes and then asked the model to classify those same names.
+"""
 import os
+
 import pandas as pd
 
-RES = "results"
+RES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
 DS = ["esc50", "urbansound8k", "ravdess", "nsynth", "mimii", "physionet", "icbhi"]
-ARMS = {"tabular": "metrics.csv", "panns": "panns_metrics.csv", "ast": "ast_metrics.csv",
-        "temporal": "temporal_metrics.csv", "twfr": "twfr_metrics.csv"}
+_V1 = os.environ.get("MAAD_NUMS_SOURCE", "rotated").lower() == "v1"
+_P = "" if _V1 else "rot_"
+ARMS = {"handcrafted": "%smetrics.csv" % _P,
+        "panns": "%spanns_metrics.csv" % _P,
+        "ast": "%sast_metrics.csv" % _P,
+        "clap": "%sclap_metrics.csv" % _P,
+        "twfr": "%stwfr_metrics.csv" % _P,
+        "temporal": "%stemporal_metrics.csv" % _P}
 
 
 def best(path):
@@ -14,37 +29,22 @@ def best(path):
         return None
     d = pd.read_csv(path)
     d = d[d["setting"] == "primary"]
-    if not len(d):
+    if d.empty:
         return None
-    i = d["auc_roc_mean"].idxmax()
-    return str(d.loc[i, "detector"]), float(d.loc[i, "auc_roc_mean"])
+    r = d.loc[d["auc_roc_mean"].idxmax()]
+    sd = r["auc_roc_fold_sd"] if "auc_roc_fold_sd" in d.columns else float("nan")
+    folds = int(r["n_folds"]) if "n_folds" in d.columns else 1
+    return str(r["detector"]), float(r["auc_roc_mean"]), float(sd), folds
 
 
-print("%-13s | %s" % ("dataset", " | ".join("%-14s" % a for a in ARMS)))
+print("source: %s results" % ("v1 fixed-group" if _V1 else "group-rotated"))
+print("%-14s %-12s %-22s %-22s %-22s %-22s %-22s"
+      % ("dataset", "", *ARMS.keys()))
 for ds in DS:
     cells = []
     for arm, fn in ARMS.items():
         b = best(os.path.join(RES, ds, fn))
-        cells.append("%-14s" % ("--" if b is None else "%.3f %s" % (b[1], b[0])))
-    print("%-13s | %s" % (ds, " | ".join(cells)))
-
-print("\n=== temporal detectors: per-detector primary AUC (all rows) ===")
-for ds in DS:
-    p = os.path.join(RES, ds, "temporal_metrics.csv")
-    if os.path.exists(p):
-        d = pd.read_csv(p)
-        d = d[d["setting"] == "primary"][["detector", "auc_roc_mean"]]
-        row = " ".join("%s=%.3f" % (r.detector, r.auc_roc_mean) for r in d.itertuples())
-        print("%-13s %s" % (ds, row))
-
-jp = "judge_results.csv"
-if os.path.exists(jp):
-    j = pd.read_csv(jp)
-    print("\n=== judge: per-dataset confusion (TP=anomaly flagged, TN=normal kept) ===")
-    for ds in j["dataset"].unique():
-        s = j[j.dataset == ds]
-        tp = int((s.true_anom & s.judge_oop).sum())
-        fn = int((s.true_anom & ~s.judge_oop).sum())
-        fp = int((~s.true_anom & s.judge_oop).sum())
-        tn = int((~s.true_anom & ~s.judge_oop).sum())
-        print("%-13s TP=%d FN=%d FP=%d TN=%d" % (ds, tp, fn, fp, tn))
+        cells.append("--" if b is None
+                     else "%s %.3f%s" % (b[0], b[1],
+                                         "" if b[3] == 1 else " (+-%.3f, %df)" % (b[2], b[3])))
+    print("%-14s %-12s %s" % (ds, "", "  ".join("%-22s" % c for c in cells)))

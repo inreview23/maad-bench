@@ -48,12 +48,24 @@ plt.rcParams.update({
     "axes.edgecolor": "#444444", "axes.linewidth": 0.8, "pdf.fonttype": 42,
 })
 
+# Source metric files. The rotated results are the default; set
+# MAAD_FIG_SOURCE=v1 to redraw the original figures from the single fixed
+# held-out group for comparison.
+_V1 = os.environ.get("MAAD_FIG_SOURCE", "rotated").lower() == "v1"
+SRC = {
+    "handcrafted": "metrics.csv" if _V1 else "rot_metrics.csv",
+    "panns": "panns_metrics.csv" if _V1 else "rot_panns_metrics.csv",
+    "ast": "ast_metrics.csv" if _V1 else "rot_ast_metrics.csv",
+    "clap": "clap_metrics.csv" if _V1 else "rot_clap_metrics.csv",
+    "twfr": "twfr_metrics.csv" if _V1 else "rot_twfr_metrics.csv",
+}
+
 
 # ----------------------------------------------------------------------------- transfer
 def load_means():
     rows = []
     for ds in DES + ORG:
-        d = pd.read_csv(os.path.join(R, ds, "metrics.csv"))
+        d = pd.read_csv(os.path.join(R, ds, SRC["handcrafted"]))
         d = d[d["setting"] == "primary"][["detector", "auc_roc_mean"]].copy()
         d["dataset"] = ds
         rows.append(d)
@@ -68,62 +80,75 @@ def load_means():
 
 
 def fig_transfer():
-    t = load_means()
-    rho = t["des"].rank().corr(t["org"].rank(), method="spearman")
-    mx, my = t["des"].median(), t["org"].median()
-    x0, x1, y0, y1 = 0.55, 0.90, 0.27, 0.67
+    """Observed cross-task rank correlation against what its two orderings allow.
 
-    fig, ax = plt.subplots(figsize=(7.3, 3.9))
-    fig.subplots_adjust(left=0.085, right=0.80, top=0.88, bottom=0.13)
-    ax.add_patch(Rectangle((mx, y0), x1 - mx, my - y0, facecolor="#FDECEA", ec="none", zorder=0))
-    ax.add_patch(Rectangle((x0, my), mx - x0, y1 - my, facecolor="#E5F3F1", ec="none", zorder=0))
-    ax.axvline(mx, color="#BBBBBB", lw=0.8, ls=(0, (4, 3)), zorder=1)
-    ax.axhline(my, color="#BBBBBB", lw=0.8, ls=(0, (4, 3)), zorder=1)
-    ax.text(x1 - 0.004, y0 + 0.010, "strong on designated,\nweak on organic", ha="right",
-            va="bottom", fontsize=7.6, style="italic", color="#C0392B", zorder=1)
-    ax.text(x0 + 0.004, y1 - 0.006, "overlooked on designated,\nstrong on organic", ha="left",
-            va="top", fontsize=7.6, style="italic", color="#138D75", zorder=1)
-    for _, r in t.iterrows():
-        ax.scatter(r["des"], r["org"], s=36 + 22 * r["shift"], color=FAMCOLOR[r["fam"]],
-                   edgecolor="white", linewidth=1.0, alpha=0.92, zorder=3)
-    off = {"SOD": (-7, 6, "right", "bottom"), "DIF": (8, 3, "left", "center"),
-           "MCD": (8, -7, "left", "top"), "QMCD": (8, 5, "left", "bottom"),
-           "KNN": (7, -3, "left", "top"), "HBOS": (0, -9, "center", "top")}
-    for _, r in t.iterrows():
-        if r["det"] in off:
-            dx, dy, ha, va = off[r["det"]]
-            ax.annotate(r["det"], (r["des"], r["org"]), textcoords="offset points",
-                        xytext=(dx, dy), ha=ha, va=va, fontsize=8.4, color="#222222", zorder=4)
-    ax.text(x0 + 0.008, y0 + 0.045, r"Spearman $\rho = %.2f$ ($p = 0.58$)" % rho + "\nno significant transfer",
-            ha="left", va="bottom", fontsize=9.2, fontweight="bold", color="#111111",
-            bbox=dict(boxstyle="round,pad=0.32", fc="white", ec="#999999", lw=0.8), zorder=5)
-    ax.set_xlabel("Effectiveness on designated-class tasks   (mean AUC-ROC $\\rightarrow$)", fontsize=10)
-    ax.set_ylabel("Effectiveness on\norganic-label tasks $\\rightarrow$", fontsize=10)
-    ax.set_xlim(x0, x1); ax.set_ylim(y0, y1)
-    ax.grid(True, color="#ECECEC", linewidth=0.7, zorder=0); ax.set_axisbelow(True)
-    for s in ("top", "right"):
-        ax.spines[s].set_visible(False)
-    fam_handles = [Line2D([0], [0], marker="o", color="w", markerfacecolor=FAMCOLOR[f],
-                          markeredgecolor="white", markersize=9, label=f) for f in FAMS]
-    leg1 = ax.legend(handles=fam_handles, loc="lower center", bbox_to_anchor=(0.5, 1.005),
-                     ncol=5, fontsize=8.4, frameon=False, handletextpad=0.25, columnspacing=1.0)
-    ax.add_artist(leg1)
-    size_handles = [Line2D([0], [0], marker="o", color="w", markerfacecolor="#9E9E9E",
-                           markeredgecolor="white", markersize=ms, label="%d" % s)
-                    for s, ms in ((2, 6), (10, 9), (18, 13))]
-    ax.legend(handles=size_handles, loc="center left", bbox_to_anchor=(1.01, 0.5),
-              labelspacing=1.1, title="rank shift\n(des. vs org.)", fontsize=8.2,
-              title_fontsize=8.2, frameon=True, framealpha=0.95, borderpad=0.7)
+    One point per sub-dataset pair. A point on the diagonal agrees as closely as
+    the reliability of its two orderings permits; a point far below it disagrees
+    for a reason measurement noise does not explain. The six pairs where both
+    sub-datasets are solved and both orderings reproduce are filled, because the
+    near-chance objection has no purchase on them.
+    """
+    ct = pd.read_csv(os.path.join(R, "analysis_ceiling_handcrafted_primary.csv"))
+    solvable = {"esc50", "urbansound8k", "ravdess", "mimii"}
+    ct["both"] = ct.a.isin(solvable) & ct.b.isin(solvable)
+
+    fig, ax = plt.subplots(figsize=(7.3, 3.6))
+    fig.subplots_adjust(left=0.09, right=0.98, top=0.94, bottom=0.15)
+
+    ax.plot([0, 1], [0, 1], ls=(0, (5, 4)), color="#999999", lw=1.0, zorder=1)
+    ax.axhline(0, color="#CCCCCC", lw=0.8, zorder=1)
+
+    op = ct[~ct.both]
+    ax.scatter(op.ceiling, op.observed, s=34, facecolor="white",
+               edgecolor="#8A8F94", lw=1.1, zorder=3,
+               label="one or both sub-datasets unsolved")
+    cl = ct[ct.both]
+    ax.scatter(cl.ceiling, cl.observed, s=46, color=DESBLUE, edgecolor="white",
+               lw=0.8, zorder=4, label="both solved, both orderings reproduce")
+
+    def lab(row, dx, dy, ha="left"):
+        ax.annotate("%s / %s" % (LABEL.get(row.a, row.a), LABEL.get(row.b, row.b)),
+                    (row.ceiling, row.observed), textcoords="offset points",
+                    xytext=(dx, dy), ha=ha, fontsize=6.4, color="#444444", zorder=5)
+
+    named = {("esc50", "urbansound8k"): (-6, 6, "right"),
+             ("mimii", "ravdess"): (7, -2, "left"),
+             ("mimii", "nsynth"): (7, -2, "left"),
+             ("esc50", "mimii"): (7, 2, "left")}
+    for r in ct.itertuples():
+        key = (r.a, r.b) if (r.a, r.b) in named else (r.b, r.a)
+        if key in named:
+            dx, dy, ha = named[key]
+            lab(r, dx, dy, ha)
+
+    ax.annotate("agrees as closely as its orderings allow", (0.93, 0.93),
+                textcoords="offset points", xytext=(-4, -12), ha="right",
+                fontsize=7.4, style="italic", color="#777777", zorder=5)
+    ax.annotate("PhysioNet pairs: ceiling zero,\nno correlation interpretable",
+                (0.0, -0.30), textcoords="offset points", xytext=(6, 0),
+                ha="left", va="center", fontsize=7.0, color="#777777", zorder=5)
+
+    ax.set_xlabel(r"Reliability ceiling $\sqrt{r_A\,r_B}$", fontsize=10.5)
+    ax.set_ylabel("Observed rank correlation", fontsize=10.5)
+    ax.set_xlim(-0.03, 1.0)
+    ax.set_ylim(-0.55, 1.0)
+    ax.grid(True, color="#EFEFEF", linewidth=0.7, zorder=0)
+    ax.set_axisbelow(True)
+    for sp in ("top", "right"):
+        ax.spines[sp].set_visible(False)
+    ax.legend(loc="lower right", fontsize=8.2, frameon=False)
+
     fig.savefig(os.path.join(R, "fig_transfer.pdf"), bbox_inches="tight")
     plt.close(fig)
-    print("wrote fig_transfer.pdf (rho=%.3f, %d detectors)" % (rho, len(t)))
+    print("wrote fig_transfer.pdf (%d pairs, %d filled, mean observed %.3f "
+          "against mean ceiling %.3f)"
+          % (len(ct), int(ct.both.sum()), ct.observed.mean(), ct.ceiling.mean()))
 
 
-# ----------------------------------------------------------------------------- repr
 def fig_repr():
-    backbones = [("Handcrafted-74", "metrics.csv", "#9AA0A6"),
-                 ("PANNs-64", "panns_metrics.csv", "#5B8FB9"),
-                 ("AST-64", "ast_metrics.csv", "#E8743B")]
+    backbones = [("Handcrafted-74", SRC["handcrafted"], "#9AA0A6"),
+                 ("PANNs-64", SRC["panns"], "#5B8FB9"),
+                 ("AST-64", SRC["ast"], "#E8743B")]
     order = DES + ORG
     best = {lab: [] for lab, _, _ in backbones}
     for ds in order:

@@ -2,7 +2,7 @@
 tables for the paper. Handles both schemas: metrics_combined.csv is already
 aggregated (<metric>_mean / <metric>_std columns); ae_scores.parquet is
 per-seed. Prints mean (and std for AUC) per detector per dataset, split by
-setting. Run from ~/projects/maad-bench/ so `import maad_bench` resolves.
+setting. Run from the repository root.
 """
 import glob
 import os
@@ -10,6 +10,9 @@ import os
 import pandas as pd
 
 import maad_bench as mb
+from analysis import guard_mixed_protocols  # noqa: E402
+guard_mixed_protocols()
+
 
 METRICS = ["auc_roc", "avg_precision", "pauc_0.1", "f1_top_q"]
 KEYS = ["dataset", "setting", "detector"]

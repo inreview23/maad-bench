@@ -21,10 +21,31 @@ LABEL = {"esc50": "ESC-50", "urbansound8k": "UrbanSound8K", "ravdess": "RAVDESS"
          "nsynth": "NSynth", "mimii": "MIMII", "physionet": "PhysioNet", "icbhi": "ICBHI"}
 
 
+def _guard_mixed_protocols():
+    """Refuse to emit a table that blends the two protocols.
+
+    These files sit side by side under results/: metrics.csv and
+    sweep_combined.csv come from the fixed-group protocol, rot_metrics.csv and
+    rot_sweep_combined.csv from the rotation. Reading the v1 pair while the
+    rotated pair exists would print a LaTeX body with no error at all, which is
+    worse than a crash, so it is an error here.
+    """
+    rotated = glob.glob(os.path.join(R, "*", "rot_metrics.csv"))
+    if rotated:
+        raise SystemExit(
+            "results/ holds rotated outputs (%d sub-datasets) as well as the v1 "
+            "files this script reads. Emitting v1 tables next to rotated ones "
+            "risks mixing protocols in the manuscript. Use make_table.py and "
+            "analysis.py, which read the rotated results, or move the rot_* "
+            "files aside deliberately." % len(rotated))
+
+
 def load_metrics():
     rows = [pd.read_csv(p) for p in glob.glob(os.path.join(R, "*", "metrics.csv"))]
     return pd.concat(rows, ignore_index=True)
 
+
+_guard_mixed_protocols()
 
 # ---------- robustness: AUC invariant, AP scales with contamination ----------
 main = load_metrics()

@@ -1,147 +1,118 @@
 # MAAD-Bench
 
-A model-agnostic benchmark for audio anomaly detection. MAAD-Bench reduces each
-audio clip to a single fixed-length tabular feature vector, so any standard
-outlier detector applies without audio-specific modeling, and it compares
-detectors across two kinds of anomaly: human-designated classes and organic
-(real-world) fault or clinical labels.
+MAAD-Bench is a model-agnostic benchmark for audio anomaly detection. It places
+seven public audio sub-datasets under one 74-feature tabular schema, 25 PyOD
+detectors, and a group-rotated evaluation protocol. The revision uses every native
+group once as the held-out test set, for 59 leave-one-group-out folds, and reports
+variation across folds rather than variation across repeated seeds of one split.
 
-## Overview
+## Benchmark scope
 
-- **Seven sub-datasets in two groups.**
-  - *Designated-class* (a held-out class is the anomaly): ESC-50 (environmental
-    sound), UrbanSound8K (urban sound), RAVDESS (emotional speech), NSynth
-    (musical timbre).
-  - *Organic-label* (the label is a real fault or clinical abnormality): MIMII
-    (industrial machine faults), PhysioNet 2016 (heart-sound abnormality),
-    ICBHI 2017 (respiratory abnormality).
-- **One feature schema.** Each clip becomes a 74-dimensional vector: 20 MFCCs,
-  12 chroma bins, and 5 spectral descriptors, each summarized by its mean and
-  standard deviation over frames (audio resampled to 22.05 kHz).
-- **Twenty-five detectors plus a deep anchor.** 25 unsupervised detectors from
-  PyOD across the proximity, linear, density, ensemble, and neural families,
-  plus a DCASE-style log-mel reconstruction autoencoder reported separately.
-- **Two settings.** Normal-only training (primary) and contaminated training
-  (secondary), five seeds, and group-safe splits that prevent train/test
-  leakage.
+| Anomaly regime | Sub-datasets | Evaluation groups |
+|---|---|---|
+| Designated class | ESC-50, UrbanSound8K, RAVDESS, NSynth valid split | 5 classes, 10 official folds, 24 actors, 5 instrument buckets |
+| Organic label | MIMII 6 dB pump subset, PhysioNet 2016, ICBHI 2017 | 4 machine IDs, 6 collection subsets, 5 patient buckets |
+
+Each clip becomes a 74-dimensional vector: 20 MFCCs, 12 chroma bins, and five
+spectral descriptors, each summarized by its mean and standard deviation. The
+primary setting trains on normal clips only. The secondary setting adds 10%
+training contamination. Both use five seeds, while the reported uncertainty is
+the standard deviation across held-out groups.
 
 ## Installation
 
-Python 3.10 or newer is recommended.
+Python 3.12 was used for the reported results.
 
-```
+```text
 pip install -r requirements.txt
 ```
 
-Core dependencies: numpy, pandas, scipy, scikit-learn, pyod (tested with 3.5.1),
-librosa, soundfile, joblib, matplotlib, pyarrow, and torch (for the neural
-detectors and the autoencoder). The optional pretrained-embedding arms also need
-panns_inference (PANNs), transformers (AST), or laion_clap (CLAP).
+`requirements.txt` records the exact DGX Spark environment. Its Torch build was a
+CUDA 12.8 ARM64 wheel; install the Torch build appropriate for your platform when
+rerunning neural detectors. PANNs and AST packages are needed only to regenerate
+embeddings from audio. The 14 cached embedding matrices are included.
 
-## Data
+## Released artifacts
 
-The seven corpora are public and are not redistributed here. Download each and
-place it under `data/<name>/`.
+The raw corpora are not redistributed. Download them from their original sources
+and place them below `data/` if you need to extract features again.
+
+| Path | Contents |
+|---|---|
+| `results/<dataset>/features.parquet` | Released handcrafted feature matrix |
+| `results/<dataset>/metadata.parquet` | Row-aligned labels, native group, category, and relative source path |
+| `results/<dataset>/splits.parquet` | Explicit train/test fold assignment |
+| `results/<dataset>/rot_runs.parquet` | Per-run metrics for the revised group rotation |
+| `results/<dataset>/rot_metrics.csv` | Fold-aggregated revised main results |
+| `results/<dataset>/rot_clip_scores.parquet` | One score per held-out clip, detector, and seed |
+| `results/<dataset>/rot_{panns,ast}_*.{csv,parquet}` | Fold-local pretrained-representation runs and summaries |
+| `results/<dataset>/rot_temporal_*.{csv,parquet}` | Frame-level temporal runs and summaries |
+| `results/analysis_*` | Reliability, transfer, group-shift, and ceiling analyses |
+| `embeddings/<dataset>_{panns,ast}.parquet` | Cached PANNs and AST embeddings |
+
+The files `metrics.csv`, `scores.parquet`, and `config.json` retain the submitted
+fixed-fold run for audit history. Results used in the revision have the `rot_`
+prefix or an `analysis_` prefix.
+
+The release contains 4,493,097 per-clip score rows. RAVDESS is 28 rows short of
+the nominal total because one CBLOF fit failed for the fold holding actor 10 at
+seed 3; the error is recorded in `rot_runs.parquet`, and the other 25 by 5 passes
+cover every test clip exactly once.
+
+## Verify the packaged result tree
+
+Run this first. It checks all seven sub-datasets, fold coverage, detector and seed
+counts, the recorded failure, and score-path resolution against metadata.
+
+```text
+python check_clip_scores.py
+```
+
+Useful read-only analysis commands include:
+
+```text
+python analysis.py --repr handcrafted --setting primary
+python stats_cd.py --repr handcrafted --setting primary
+python origin_transfer.py --repr handcrafted --setting primary
+python gen_ae_anchor.py
+python gen_table8.py
+python gen_table11.py
+python w2_transfer.py
+```
+
+To refit the main detector roster from the released features:
+
+```text
+python rotate.py --dataset all --jobs 1
+```
+
+To refit the detector roster on the cached PANNs and AST embeddings:
+
+```text
+python rotate_repr.py --dataset all --backbone panns --jobs 1
+python rotate_repr.py --dataset all --backbone ast --jobs 1
+```
+
+The temporal and log-mel autoencoder arms require per-frame caches that are not
+included because they are several gigabytes. Their per-run outputs are included,
+so the corresponding tables can be recomputed but those two arms cannot be
+refitted from this release without the raw audio and regenerated caches.
+
+## Data sources
 
 | Sub-dataset | Source |
 |---|---|
-| ESC-50 | https://github.com/karolpiczak/ESC-50 |
-| UrbanSound8K | https://urbansounddataset.weebly.com/urbansound8k.html |
-| RAVDESS | https://zenodo.org/record/1188976 |
-| NSynth | https://magenta.tensorflow.org/datasets/nsynth |
-| MIMII | https://zenodo.org/record/3384388 |
-| PhysioNet 2016 | https://physionet.org/content/challenge-2016/ |
-| ICBHI 2017 | https://bhichallenge.med.auth.gr/ |
-
-The folder layout each corpus expects is defined by its loader in
-`maad_bench.py` (for example `load_esc50`, `load_mimii`). `us8k_fetch.py` helps
-arrange UrbanSound8K.
-
-## Precomputed Artifacts
-
-To let the benchmark reproduce without re-extracting features from gigabytes of
-audio, this release bundles the computed artifacts under `results/<sub-dataset>/`
-for all seven sub-datasets:
-
-- `features.parquet`: the 74-dimensional handcrafted feature matrix (20 MFCCs, 12
-  chroma bins, 5 spectral descriptors, each as mean and standard deviation), one row
-  per clip.
-- `metadata.parquet`: evaluation-only fields, row-aligned to the features: `path`
-  (relative to `data/`), `group` (the native grouping that defines the leakage-safe
-  split), `category` (original class), and `anomaly_label` (0 or 1).
-- `scores.parquet`: per-detector metrics (AUC-ROC, average precision, partial AUC, and
-  F1 at the top-q threshold) for the 25-detector sweep across both settings and five
-  seeds. `ae_scores.parquet`, `ast_scores.parquet`, `panns_scores.parquet`, and
-  `twfr_scores.parquet` hold the autoencoder anchor and the representation and temporal
-  arms; `metrics.csv` is a flat summary.
-
-The raw audio is **not** redistributed (download each corpus from the sources above);
-the relative `path` column maps each feature row back to its source clip. With the
-bundled `results/`, the table scripts in the next section run directly, skipping the
-sweep.
-
-## Reproduce
-
-All scripts read and write under the repository root (`data/`, `cache/`,
-`results/`). The pre-registered class mappings, sampling rate, contamination
-level, and seeds are set at the top of `maad_bench.py`.
-
-1. **Main detector sweep** (writes `results/<name>/metrics.csv`):
-   ```
-   python maad_bench.py --dataset all
-   ```
-2. **Autoencoder anchor** (writes `results/<name>/ae_scores.parquet`):
-   ```
-   python ae_baseline.py --dataset all
-   ```
-3. **Tables and analysis:**
-   - `python make_table.py` and `python tabulate_results.py`: primary and
-     secondary result tables.
-   - `python origin_transfer.py`: the designated-to-organic rank correlation and
-     Friedman analysis (the headline transfer result).
-   - `python extra_tables.py`: representation, robustness, and runtime tables.
-   - `python ablation_features.py`: the feature-family ablation.
-   - `python contam_sweep.py` and `python runtime.py`: the contamination
-     robustness and per-detector runtime appendices.
-4. **Representation and temporal arms** (optional, need the extra packages):
-   - `python panns_embed.py` and `python embed.py`: PANNs and AST embeddings.
-   - `python temporal.py`, `python twfr.py`: frame-level temporal detectors.
-5. **Room-acoustics case study:**
-   ```
-   python acoustics.py
-   ```
-6. **Figures** (writes PDFs under `results/`):
-   ```
-   python fig_make.py
-   ```
-
-## Repository Layout
-
-| File | Role |
-|---|---|
-| `maad_bench.py` | Core: loaders, group-safe splits, the 74-feature schema, the 25-detector sweep, metrics |
-| `ae_baseline.py` | DCASE-style log-mel autoencoder anchor |
-| `make_table.py`, `tabulate_results.py` | Primary and secondary result tables |
-| `origin_transfer.py` | Designated-versus-organic rank correlation and Friedman test |
-| `extra_tables.py`, `stats_cd.py` | Representation, robustness, runtime tables and rank statistics |
-| `embed.py`, `panns_embed.py` | Pretrained-embedding arms (AST, PANNs) |
-| `temporal.py`, `twfr.py` | Frame-level temporal detectors and TWFR-GMM |
-| `ablation_features.py` | Feature-family ablation |
-| `acoustics.py` | Room-acoustics (ISO 3382-1) case study |
-| `contam_sweep.py`, `runtime.py` | Contamination robustness and runtime |
-| `fig_make.py` | Figures |
-| `count_meta.py`, `nums.py`, `us8k_fetch.py` | Dataset statistics and helpers |
-
-## License
-
-Released under the MIT License (see `LICENSE`).
+| ESC-50 | <https://github.com/karolpiczak/ESC-50> |
+| UrbanSound8K | <https://urbansounddataset.weebly.com/urbansound8k.html> |
+| RAVDESS | <https://zenodo.org/record/1188976> |
+| NSynth | <https://magenta.tensorflow.org/datasets/nsynth> |
+| MIMII | <https://zenodo.org/record/3384388> |
+| PhysioNet 2016 | <https://physionet.org/content/challenge-2016/> |
+| ICBHI 2017 | <https://bhichallenge.med.auth.gr/> |
 
 ## Citation
 
-A paper describing MAAD-Bench is under review. Until it is published, please cite
-it as a manuscript submitted for publication:
-
-```
+```bibtex
 @unpublished{maadbench2026,
   title  = {MAAD-Bench: A Model-Agnostic Benchmark for Audio Anomaly Detection},
   author = {Qian Hao and Liang Zhao},
@@ -149,3 +120,7 @@ it as a manuscript submitted for publication:
   year   = {2026}
 }
 ```
+
+## License
+
+Released under the MIT License. See `LICENSE`.

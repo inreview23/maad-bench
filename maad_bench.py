@@ -64,7 +64,9 @@ DATASETS = {
     "mimii": dict(
         normal=["normal"],
         anomaly=["abnormal"],
-        test_groups=[6],   # hold out machine id_06; real machine anomalies
+        # hold out pump id_06, the v1 fold; groups are (machine type, ID) pairs
+        # because the four IDs recur across all four machine types
+        test_groups=["pump-id_06"],
     ),
     "physionet": dict(
         normal=["normal"],
@@ -178,20 +180,46 @@ def load_nsynth():
 
 
 def load_mimii():
+    """MIMII at 6 dB, grouped by (machine type, machine ID).
+
+    Defaults to the pump subset, which is what the paper reports and what the
+    released feature matrices and embedding caches were built from. The group is
+    the (type, ID) pair rather than the ID alone, because the same four IDs
+    (00, 02, 04, 06) recur in every machine type: grouping on the ID would put a
+    fan, a pump, a slider and a valve in one fold and call it a held-out machine.
+    Widening the roster therefore changes the fold structure as well as the row
+    count, which is why it is opt-in.
+    """
     import re
-    cfg = DATASETS["mimii"]
-    norm = glob.glob(os.path.join(DATA_DIR, "**", "id_*", "normal", "*.wav"), recursive=True)
-    abn = glob.glob(os.path.join(DATA_DIR, "**", "id_*", "abnormal", "*.wav"), recursive=True)
-    if not norm and not abn:
+    # The reported build is the 6 dB pump subset, so that is the default: a loader
+    # that silently returned sixteen folds where the paper reports four would make
+    # the tables irreproducible. Set MAAD_MIMII_TYPES to a comma-separated list
+    # (or "all") to widen it; the pretrained-embedding caches are keyed on the
+    # pump-only path list and would need regenerating from audio if you do.
+    types = os.environ.get("MAAD_MIMII_TYPES", "pump")
+    types = ["fan", "pump", "slider", "valve"] if types == "all" else \
+        [t.strip() for t in types.split(",") if t.strip()]
+    wavs = []
+    for t in types:
+        wavs += glob.glob(os.path.join(DATA_DIR, "mimii_%s" % t, "**", "id_*",
+                                       "*", "*.wav"), recursive=True)
+    if not wavs:
         raise FileNotFoundError(
-            "MIMII not found under %s. Extract 6_dB_pump.zip there "
-            "(expects id_*/{normal,abnormal}/*.wav)." % DATA_DIR)
+            "MIMII machine types %s not found under %s. Extract 6_dB_<type>.zip "
+            "into data/mimii_<type>/ (expects id_*/{normal,abnormal}/*.wav)."
+            % (",".join(types), DATA_DIR))
     rows = []
-    for p in sorted(norm) + sorted(abn):
-        mobj = re.search(r"id_(\d+)", p)
-        gid = int(mobj.group(1)) if mobj else -1
-        is_abn = os.path.basename(os.path.dirname(p)) == "abnormal"
-        rows.append({"path": p, "group": gid,
+    for p in sorted(wavs):
+        cond = os.path.basename(os.path.dirname(p))
+        if cond not in ("normal", "abnormal"):
+            continue
+        mt = re.search(r"mimii_([a-z]+)", p.replace("\\", "/"))
+        mid = re.search(r"id_(\d+)", p)
+        mtype = mt.group(1) if mt else "unknown"
+        gid = mid.group(1) if mid else "??"
+        is_abn = cond == "abnormal"
+        rows.append({"path": p, "group": "%s-id_%s" % (mtype, gid),
+                     "machine_type": mtype,
                      "category": "abnormal" if is_abn else "normal",
                      "anomaly_label": int(is_abn)})
     return pd.DataFrame(rows)
@@ -322,16 +350,31 @@ def extract_features(name, df):
 
 
 # --------------------------------- splits ---------------------------------
-def make_split(df, seed, setting, test_groups):
+def make_split(df, seed, setting, test_groups, subsample_test=True,
+               contamination=None):
+    """Group-disjoint split.
+
+    subsample_test=True (default, the v1 protocol) draws test anomalies down to
+    CONTAMINATION of the test set. That discards positives for no benefit under
+    AUC-ROC, which is prevalence-invariant, and on small held-out groups it left
+    as few as 5 positives. subsample_test=False keeps every anomaly in the
+    held-out group and is the protocol used by run_rotation(). The training side
+    is unaffected either way: CONTAMINATION still governs the secondary-setting
+    injection below.
+    """
+    c = CONTAMINATION if contamination is None else float(contamination)
     rng = np.random.RandomState(seed)
     in_test = df["group"].isin(test_groups).to_numpy()
     is_anom = (df["anomaly_label"] == 1).to_numpy()
     idx = np.arange(len(df))
 
     test_normal = idx[in_test & ~is_anom]
-    n_anom = max(1, int(round(CONTAMINATION / (1 - CONTAMINATION) * len(test_normal))))
     pool = idx[in_test & is_anom]
-    test_anom = rng.choice(pool, size=min(n_anom, len(pool)), replace=False)
+    if subsample_test:
+        n_anom = max(1, int(round(c / (1 - c) * len(test_normal))))
+        test_anom = rng.choice(pool, size=min(n_anom, len(pool)), replace=False)
+    else:
+        test_anom = pool
     test_idx = np.concatenate([test_normal, test_anom])
 
     train_normal = idx[~in_test & ~is_anom]
@@ -340,7 +383,7 @@ def make_split(df, seed, setting, test_groups):
     else:
         pool_tr = idx[~in_test & is_anom]
         n_tr = min(len(pool_tr),
-                   max(1, int(round(CONTAMINATION / (1 - CONTAMINATION) * len(train_normal)))))
+                   max(1, int(round(c / (1 - c) * len(train_normal)))))
         train_idx = np.concatenate([train_normal, rng.choice(pool_tr, size=n_tr, replace=False)])
     return train_idx, test_idx
 
@@ -415,8 +458,36 @@ def detector_factories():
     return facs
 
 
+NAN_METRICS = {"auc_roc": float("nan"), "avg_precision": float("nan"),
+               "pauc_0.1": float("nan"), "f1_top_q": float("nan")}
+
+
+def is_scorable(y):
+    """A test fold needs both classes present for AUC-ROC to be defined."""
+    y = np.asarray(y)
+    return len(y) > 0 and 0 < int(y.sum()) < len(y)
+
+
 def metrics(y, scores, contamination):
+    """Four metrics for one (fold, seed, detector) cell.
+
+    Returns NaNs plus a reason when the fold is single-class rather than letting
+    roc_auc_score raise. Under the v1 protocol every fold was forced to 10%
+    prevalence so this could not happen; rotating over every native group makes
+    it reachable, and an uncaught raise there would blank all 25 detectors of
+    that fold at once.
+
+    f1_top_q flags a fixed budget of k = round(contamination * n_test) clips.
+    Note that under the v1 protocol the test set was itself subsampled to that
+    same prevalence, so k equalled the true positive count for six of seven
+    sub-datasets and precision, recall and F1 coincided by construction. The
+    realized prevalence is recorded alongside so that degeneracy is visible.
+    """
     from sklearn.metrics import roc_auc_score, average_precision_score, f1_score
+    y = np.asarray(y)
+    if not is_scorable(y):
+        return dict(NAN_METRICS, skipped="single_class_fold",
+                    n_flagged=0, test_prevalence=float(y.mean()) if len(y) else float("nan"))
     out = {"auc_roc": float(roc_auc_score(y, scores)),
            "avg_precision": float(average_precision_score(y, scores))}
     try:
@@ -426,11 +497,83 @@ def metrics(y, scores, contamination):
     k = max(1, int(round(contamination * len(y))))
     thresh = np.sort(scores)[::-1][k - 1]
     out["f1_top_q"] = float(f1_score(y, (scores >= thresh).astype(int), zero_division=0))
+    out["n_flagged"] = int(k)
+    out["test_prevalence"] = float(y.mean())
     return out
 
 
-def run(df, feat, test_groups):
+def make_pca_pre(n_components=64, random_state=0):
+    """Fold-local dimensionality reduction for the pretrained-embedding arms.
+
+    panns_embed.py and embed.py called PCA(...).fit_transform on the complete
+    embedding matrix and only split afterwards, justified in a comment as
+    leakage-safe because PCA sees no labels. Label-blindness is not the issue:
+    in an inductive protocol whose held-out group is population-disjoint by
+    design, letting the test rows determine the projection axes is leakage. This
+    fits the projection on the training rows of the current fold only.
+    """
+    def pre(X, tr, te):
+        from sklearn.decomposition import PCA
+        k = min(n_components, X.shape[1], len(tr))
+        p = PCA(n_components=k, random_state=random_state).fit(X[tr])
+        return p.transform(X[tr]), p.transform(X[te])
+    return pre
+
+
+def _sweep_split(X, y, tr, te, facs, seed, contamination, ctx=None, collect=False,
+                 pre=None):
+    """Fit and score every detector on one already-chosen split.
+
+    Shared by run() and run_rotation() so the two protocols cannot drift apart.
+    Any pre transform and the scaler are both fitted on the training rows only.
+    When collect is set, the per-clip decision scores are kept instead of being
+    discarded; the v1 code passed decision_function(...) straight into metrics()
+    without binding it, which is why the released scores.parquet holds run-level
+    metrics rather than the per-clip scores the paper claims to release.
+    """
     from sklearn.preprocessing import StandardScaler
+    ctx = ctx or {}
+    Xtr_raw, Xte_raw = pre(X, tr, te) if pre is not None else (X[tr], X[te])
+    sc = StandardScaler().fit(Xtr_raw)
+    Xtr, Xte, yte = sc.transform(Xtr_raw), sc.transform(Xte_raw), y[te]
+    rows, clips = [], []
+    for name, make in facs.items():
+        s = None
+        try:
+            # LODA takes no random_state and draws its random cuts from the
+            # global NumPy generator inside fit, so without this its value
+            # depends on how far that generator has advanced, which is to say
+            # on the call order of whichever driver is running. It is the only
+            # detector of the 25 that does this: measured across six
+            # sub-datasets, running the secondary setting alone rather than
+            # after the primary moved LODA by up to 0.018 and every other
+            # detector by at most 3e-6.
+            np.random.seed(seed)
+            det = make(contamination, seed)
+            det.fit(Xtr)
+            s = np.asarray(det.decision_function(Xte), dtype=float)
+            m = metrics(yte, s, contamination)
+        except Exception as e:
+            s = None
+            m = dict(NAN_METRICS, error=type(e).__name__)
+        m.update({"detector": name, "seed": seed, "n_train": len(tr),
+                  "n_test": len(te), "n_test_anom": int(yte.sum())})
+        m.update(ctx)
+        rows.append(m)
+        if collect and s is not None:
+            clip = {"detector": name, "seed": seed,
+                    "row_index": np.asarray(te, dtype=np.int32),
+                    "anomaly_label": np.asarray(yte, dtype=np.int8),
+                    "score": s.astype(np.float32)}
+            clip.update(ctx)
+            clips.append(pd.DataFrame(clip))
+    return rows, clips
+
+
+def run(df, feat, test_groups):
+    """v1 protocol: one fixed held-out group, test anomalies subsampled to
+    CONTAMINATION. Kept unchanged so the rotation results can be regressed
+    against the published tables."""
     X = feat.to_numpy(dtype=float)
     y = df["anomaly_label"].to_numpy()
     facs = detector_factories()
@@ -439,20 +582,9 @@ def run(df, feat, test_groups):
     for setting in ("primary", "secondary"):
         for seed in SEEDS:
             tr, te = make_split(df, seed, setting, test_groups)
-            sc = StandardScaler().fit(X[tr])
-            Xtr, Xte, yte = sc.transform(X[tr]), sc.transform(X[te]), y[te]
-            for name, make in facs.items():
-                try:
-                    det = make(CONTAMINATION, seed)
-                    det.fit(Xtr)
-                    m = metrics(yte, det.decision_function(Xte), CONTAMINATION)
-                except Exception as e:
-                    m = {"auc_roc": float("nan"), "avg_precision": float("nan"),
-                         "pauc_0.1": float("nan"), "f1_top_q": float("nan"),
-                         "error": type(e).__name__}
-                m.update({"detector": name, "setting": setting, "seed": seed,
-                          "n_train": len(tr), "n_test": len(te), "n_test_anom": int(yte.sum())})
-                rec.append(m)
+            rows, _ = _sweep_split(X, y, tr, te, facs, seed, CONTAMINATION,
+                                   ctx={"setting": setting})
+            rec.extend(rows)
     return pd.DataFrame(rec)
 
 
@@ -462,6 +594,100 @@ def summarize(scores_df, dataset):
     agg.columns = ["%s_%s" % (a, b) for a, b in agg.columns]
     agg = agg.reset_index()
     agg.insert(0, "dataset", dataset)
+    return agg.sort_values(["setting", "auc_roc_mean"], ascending=[True, False])
+
+
+def run_rotation(df, feat, groups=None, settings=("primary", "secondary"),
+                 subsample_test=False, collect_scores_for=("primary",), pre=None,
+                 contamination=None):
+    """Leave-one-group-out over every native group.
+
+    The v1 protocol held out one pre-registered group per sub-dataset and never
+    rotated it, so the seeds shared a training set and the group axis carried no
+    variance at all. Rotating shows how much the choice of held-out group was
+    doing: on PhysioNet a single HBOS fit moves between 0.162 and 0.839 across
+    the six subsets.
+
+    Returns (runs_df, clip_df). runs_df carries one row per
+    (group, setting, seed, detector); clip_df carries one row per test clip for
+    the settings named in collect_scores_for, or None when nothing was collected.
+    """
+    c = CONTAMINATION if contamination is None else float(contamination)
+    X = feat.to_numpy(dtype=float)
+    y = df["anomaly_label"].to_numpy()
+    if groups is None:
+        groups = sorted(df["group"].unique().tolist())
+    facs = detector_factories()
+    print("rotation: %d groups x %d detectors x %d seeds x %d settings"
+          % (len(groups), len(facs), len(SEEDS), len(settings)), flush=True)
+    rec, clips = [], []
+    for g in groups:
+        for setting in settings:
+            for seed in SEEDS:
+                tr, te = make_split(df, seed, setting, [g],
+                                    subsample_test=subsample_test,
+                                    contamination=c)
+                ctx = {"setting": setting, "group": g}
+                if not is_scorable(y[te]):
+                    rec.append(dict(NAN_METRICS, detector="*", seed=seed,
+                                    n_train=len(tr), n_test=len(te),
+                                    n_test_anom=int(y[te].sum()),
+                                    skipped="single_class_fold", **ctx))
+                    print("  skip group=%s %s seed=%d: single-class test fold "
+                          "(n_test=%d, n_anom=%d)"
+                          % (g, setting, seed, len(te), int(y[te].sum())), flush=True)
+                    continue
+                rows, cl = _sweep_split(X, y, tr, te, facs, seed, c,
+                                        ctx=ctx, collect=setting in collect_scores_for,
+                                        pre=pre)
+                rec.extend(rows)
+                clips.extend(cl)
+        print("  group %s done" % g, flush=True)
+    clip_df = pd.concat(clips, ignore_index=True) if clips else None
+    return pd.DataFrame(rec), clip_df
+
+
+def summarize_rotation(runs_df, dataset):
+    """Aggregate seeds within a fold first, then folds.
+
+    Emits the between-fold SD alongside the within-fold seed SD. The published
+    tables reported only the second, which measured the anomaly subsample and
+    detector randomness under one fixed split; the first is the uncertainty that
+    matters for a claim about a new task.
+    """
+    METS = ["auc_roc", "avg_precision", "pauc_0.1", "f1_top_q"]
+    d = runs_df[runs_df["detector"] != "*"].copy()
+    per_fold = (d.groupby(["setting", "detector", "group"])[METS]
+                .agg(["mean", "std"]))
+    per_fold.columns = ["%s_%s" % (a, b) for a, b in per_fold.columns]
+    per_fold = per_fold.reset_index()
+
+    # With subsample_test=False the test side is fixed by the group, so n_test
+    # and n_test_anom are constant across seeds; first() is exact, and this
+    # avoids groupby.apply's pandas-version-dependent include_groups argument.
+    counts = (d.groupby(["setting", "detector", "group"])[["n_test", "n_test_anom"]]
+              .first().reset_index())
+    counts["pair_weight"] = ((counts["n_test"] - counts["n_test_anom"])
+                             * counts["n_test_anom"])
+    per_fold = per_fold.merge(counts[["setting", "detector", "group", "pair_weight"]],
+                              on=["setting", "detector", "group"], how="left")
+
+    out = []
+    for (setting, det), t in per_fold.groupby(["setting", "detector"]):
+        row = {"dataset": dataset, "setting": setting, "detector": det,
+               "n_folds": int(t["group"].nunique())}
+        for m in METS:
+            fold_means = t["%s_mean" % m]
+            row["%s_mean" % m] = float(fold_means.mean())
+            row["%s_fold_sd" % m] = float(fold_means.std())
+            row["%s_seed_sd" % m] = float(t["%s_std" % m].mean())
+        w = t["pair_weight"].to_numpy(dtype=float)
+        a = t["auc_roc_mean"].to_numpy(dtype=float)
+        ok = np.isfinite(a) & np.isfinite(w) & (w > 0)
+        row["auc_roc_pairweighted"] = (float((a[ok] * w[ok]).sum() / w[ok].sum())
+                                       if ok.any() else float("nan"))
+        out.append(row)
+    agg = pd.DataFrame(out)
     return agg.sort_values(["setting", "auc_roc_mean"], ascending=[True, False])
 
 

@@ -1,17 +1,37 @@
-# Core
-numpy
-pandas
-scipy
-scikit-learn
-pyod>=2.0
-librosa
-soundfile
-joblib
-matplotlib
-pyarrow
-torch
+# Exact versions of the environment that produced the reported numbers
+# (NVIDIA DGX Spark, GB10 / ARM64, DGX OS 7.5.0, Python 3.12).
+#
+# The previous file listed bare package names plus `pyod>=2.0` while the paper
+# claimed pinned library versions. These are the resolved pins.
 
-# Optional: pretrained-embedding arms
-# panns_inference
-# transformers
-# laion-clap
+# Core: these determine the numbers.
+numpy==1.26.4
+pandas==3.0.3
+scipy==1.17.1
+scikit-learn==1.8.0
+pyod==3.5.1
+joblib==1.5.3
+pyarrow==24.0.0
+
+# Audio feature extraction.
+librosa==0.11.0
+soundfile==0.13.1
+numba==0.65.1
+llvmlite==0.47.0
+
+# Figures.
+matplotlib==3.10.9
+
+# Neural detectors (AutoEncoder, VAE, DIF, LUNAR) and the log-mel autoencoder
+# anchor. The recorded build is a CUDA 12.8 ARM64 wheel; install the torch build
+# that matches your platform rather than this exact string. The classical
+# 21-detector roster runs without torch, and detector_factories() drops any
+# detector it cannot construct.
+torch==2.11.0  # recorded as 2.11.0+cu128
+
+# Pretrained-embedding arms. Optional: needed only to regenerate embeddings from
+# audio. The cached embedding matrices are released, so the detector sweep over
+# them runs without these.
+# panns-inference==0.1.1   # PANNs CNN14
+# transformers==5.8.1      # AST
+# laion_clap==1.1.7        # CLAP

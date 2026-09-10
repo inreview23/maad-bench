@@ -99,7 +99,7 @@ def frame_errors(net, X, device):
     return out
 
 
-def run(name):
+def run(name, settings=("primary", "secondary")):
     import torch
     cfg = mb.DATASETS[name]
     df = mb.LOADERS[name]()
@@ -108,36 +108,49 @@ def run(name):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print("[%s] device=%s frames=%s" % (name, device, frames.shape), flush=True)
 
+    groups = list(pd.unique(df["group"]))
     rec = []
-    for setting in ("primary", "secondary"):
-        for seed in mb.SEEDS:
-            tr, te = mb.make_split(df, seed, setting, cfg["test_groups"])
-            trm = np.isin(clip, tr)
-            mu = frames[trm].mean(0)
-            sd = frames[trm].std(0) + 1e-8
-            net = train_ae((frames[trm] - mu) / sd, frames.shape[1], device, seed)
-            tem = np.isin(clip, te)
-            errs = frame_errors(net, (frames[tem] - mu) / sd, device)
-            te_clip = clip[tem]
-            scores = np.array([errs[te_clip == ci].mean() for ci in te])
-            yte = y[te]
-            m = mb.metrics(yte, scores, mb.CONTAMINATION)
-            m.update({"detector": "AE_logmel", "setting": setting, "seed": seed,
-                      "n_train": int(len(tr)), "n_test": int(len(te)),
-                      "n_test_anom": int(yte.sum())})
-            rec.append(m)
+    for setting in settings:
+        for g in groups:
+            for seed in mb.SEEDS:
+                tr, te = mb.make_split(df, seed, setting, [g],
+                                       subsample_test=False)
+                if not mb.is_scorable(y[te]):
+                    print("[%s] fold %s is single-class, skipped" % (name, g),
+                          flush=True)
+                    continue
+                trm = np.isin(clip, tr)
+                mu = frames[trm].mean(0)
+                sd = frames[trm].std(0) + 1e-8
+                net = train_ae((frames[trm] - mu) / sd, frames.shape[1], device, seed)
+                tem = np.isin(clip, te)
+                errs = frame_errors(net, (frames[tem] - mu) / sd, device)
+                te_clip = clip[tem]
+                scores = np.array([errs[te_clip == ci].mean() for ci in te])
+                yte = y[te]
+                m = mb.metrics(yte, scores, mb.CONTAMINATION)
+                m.update({"detector": "AE_logmel", "setting": setting,
+                          "group": g, "seed": seed,
+                          "n_train": int(len(tr)), "n_test": int(len(te)),
+                          "n_test_anom": int(yte.sum())})
+                rec.append(m)
     sdf = pd.DataFrame(rec)
     out = os.path.join(mb.RESULTS_DIR, name)
     os.makedirs(out, exist_ok=True)
-    sdf.to_parquet(os.path.join(out, "ae_scores.parquet"), index=False)
-    print("\n=== %s AE baseline (mean over seeds) ===" % name, flush=True)
-    print(sdf.groupby("setting")[["auc_roc", "avg_precision", "pauc_0.1", "f1_top_q"]]
-          .mean().to_string(), flush=True)
+    sdf.to_parquet(os.path.join(out, "ae_rot_scores.parquet"), index=False)
+    per_fold = sdf.groupby(["setting", "group"], as_index=False)["auc_roc"].mean()
+    summ = per_fold.groupby("setting")["auc_roc"].agg(["mean", "std", "count"])
+    summ.columns = ["auc_roc_mean", "auc_roc_fold_sd", "n_folds"]
+    summ.to_csv(os.path.join(out, "ae_rot_metrics.csv"))
+    print("\n=== %s AE baseline, %d folds (fold mean, between-fold SD) ==="
+          % (name, len(groups)), flush=True)
+    print(summ.round(3).to_string(), flush=True)
     return sdf
 
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--settings", default="primary,secondary")
     ap.add_argument("--dataset", required=True,
                     choices=["esc50", "urbansound8k", "ravdess", "nsynth", "mimii",
                              "physionet", "icbhi", "all"])
@@ -147,7 +160,7 @@ def main():
     names = allnames if args.dataset == "all" else [args.dataset]
     for n in names:
         try:
-            run(n)
+            run(n, tuple(x for x in args.settings.split(",") if x))
         except Exception as e:
             print("[%s] FAILED %s: %s" % (n, type(e).__name__, e), flush=True)
 

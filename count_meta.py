@@ -6,7 +6,9 @@ import os
 
 import pandas as pd
 
-for p in sorted(glob.glob(os.path.expanduser("~/projects/maad-bench/results/*/metadata.parquet"))):
+RESULTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "results")
+
+for p in sorted(glob.glob(os.path.join(RESULTS, "*", "metadata.parquet"))):
     ds = os.path.basename(os.path.dirname(p))
     d = pd.read_parquet(p)
     cols = list(d.columns)

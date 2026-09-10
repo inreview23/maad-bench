@@ -3,9 +3,9 @@ vector with a 2048-dim PANNs CNN14 embedding (pretrained on AudioSet), then runs
 the SAME PyOD detector sweep. This tests whether the "classical detectors are
 competitive" finding is an artifact of the weak handcrafted features.
 
-Requires: pip install panns_inference (pulls torchlibrosa; downloads CNN14
-weights to ~/panns_data on first use). Run from the repository root with a GPU
-available. CNN14 expects 32 kHz mono audio.
+Requires: pip install panns_inference (pulls torchlibrosa and downloads CNN14
+weights on first use). Run from the repository root on a GPU machine. CNN14
+expects 32 kHz mono audio.
 """
 import argparse
 import hashlib

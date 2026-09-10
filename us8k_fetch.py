@@ -6,7 +6,9 @@ import os
 import tarfile
 import urllib.request
 
-DATA = os.path.expanduser("~/projects/maad-bench/data")
+# Derive the data root from this file, the way maad_bench.py does, so every
+# checkout downloads to its own visible data directory.
+DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
 os.makedirs(DATA, exist_ok=True)
 URL = "https://zenodo.org/record/1203745/files/UrbanSound8K.tar.gz?download=1"
 tgz = os.path.join(DATA, "UrbanSound8K.tar.gz")

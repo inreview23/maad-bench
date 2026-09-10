@@ -137,69 +137,103 @@ def fill_nan(v):
     return v
 
 
-def run(name, which):
-    df, mats = extract_frames(name)
-    cfg = mb.DATASETS[name]
-    y = df["anomaly_label"].to_numpy()
-    # global per-channel standardization (unsupervised, no label use)
-    scaler = StandardScaler().fit(np.vstack(mats))
-    mats = [scaler.transform(m).astype(np.float32) for m in mats]
-    flux = [np.r_[0.0, np.linalg.norm(np.diff(m, axis=0), axis=1)].reshape(-1, 1).astype(np.float32)
-            for m in mats]
-    n = len(mats)
-    specs = detector_specs(which)
-    print("[%s] temporal detectors: %s (%d clips)" % (name, ", ".join(specs), n), flush=True)
+def _flux(m):
+    return np.r_[0.0, np.linalg.norm(np.diff(m, axis=0), axis=1)].reshape(-1, 1).astype(np.float32)
 
-    def series_for(kind, i):
-        return flux[i] if kind == "flux" else mats[i]
+
+def _fit_scaler(mats, tr, seed, cap=CAP_TRAIN_FRAMES):
+    """Per-channel standardization fitted on TRAINING clips only.
+
+    v1 fitted this on np.vstack(mats), every clip in the dataset, and justified
+    it in a comment as unsupervised. Label-blindness is not the question: the
+    held-out group is population-disjoint by design, so letting its frames set
+    the channel means and scales is leakage. The frame budget is capped the same
+    way the detector fit is, which is ample for two moments per channel.
+    """
+    rng = np.random.RandomState(seed)
+    chunks, total = [], 0
+    for i in rng.permutation(tr):
+        chunks.append(mats[i])
+        total += mats[i].shape[0]
+        if total >= cap:
+            break
+    return StandardScaler().fit(np.vstack(chunks))
+
+
+def run(name, which, groups=None):
+    """Group-rotated temporal arm with fold-local standardization."""
+    df, mats = extract_frames(name)
+    y = df["anomaly_label"].to_numpy()
+    if groups is None:
+        groups = sorted(df["group"].unique().tolist())
+    specs = detector_specs(which)
+    print("[%s] temporal detectors: %s (%d clips, %d groups)"
+          % (name, ", ".join(specs), len(mats), len(groups)), flush=True)
 
     rec = []
-    for det_name, (mode, kind, build) in specs.items():
-        if mode == "selffit":
-            scores = np.array([clip_score(build(), series_for(kind, i)) for i in range(n)])
-            scores = fill_nan(scores)
-            for setting in ("primary", "secondary"):
-                for seed in mb.SEEDS:
-                    tr, te = mb.make_split(df, seed, setting, cfg["test_groups"])
-                    m = mb.metrics(y[te], scores[te], mb.CONTAMINATION)
-                    m.update({"detector": det_name, "setting": setting, "seed": seed,
-                              "n_train": len(tr), "n_test": len(te), "n_test_anom": int(y[te].sum())})
-                    rec.append(m)
-            print("  %-8s done (selffit, scored once per clip)" % det_name, flush=True)
-        else:
-            for setting in ("primary", "secondary"):
-                for seed in mb.SEEDS:
-                    tr, te = mb.make_split(df, seed, setting, cfg["test_groups"])
-                    rng = np.random.RandomState(seed)
-                    order = rng.permutation(tr)
-                    chunks, total = [], 0
-                    for i in order:
-                        chunks.append(series_for(kind, i))
-                        total += series_for(kind, i).shape[0]
-                        if total >= CAP_TRAIN_FRAMES:
-                            break
-                    train_series = np.vstack(chunks)
-                    det = build()
-                    try:
-                        det.fit(train_series)
-                        te_scores = fill_nan([score_with(det, series_for(kind, i)) for i in te])
-                        m = mb.metrics(y[te], te_scores, mb.CONTAMINATION)
-                    except Exception as e:
-                        m = {"auc_roc": float("nan"), "avg_precision": float("nan"),
-                             "pauc_0.1": float("nan"), "f1_top_q": float("nan"),
-                             "error": type(e).__name__}
-                    m.update({"detector": det_name, "setting": setting, "seed": seed,
-                              "n_train": len(tr), "n_test": len(te), "n_test_anom": int(y[te].sum())})
-                    rec.append(m)
-            print("  %-8s done (train-on-normal)" % det_name, flush=True)
+    for g in groups:
+        for setting in ("primary", "secondary"):
+            for seed in mb.SEEDS:
+                tr, te = mb.make_split(df, seed, setting, [g], subsample_test=False)
+                ctx = {"setting": setting, "seed": seed, "group": g,
+                       "n_train": len(tr), "n_test": len(te),
+                       "n_test_anom": int(y[te].sum())}
+                if not mb.is_scorable(y[te]):
+                    rec.append(dict(mb.NAN_METRICS, detector="*",
+                                    skipped="single_class_fold", **ctx))
+                    continue
 
-    out = mb.summarize(pd.DataFrame(rec), name)
+                scaler = _fit_scaler(mats, tr, seed)
+                cache = {}
+
+                def ser(kind, i):
+                    key = (kind, i)
+                    if key not in cache:
+                        m = scaler.transform(mats[i]).astype(np.float32)
+                        cache[key] = _flux(m) if kind == "flux" else m
+                    return cache[key]
+
+                for det_name, (mode, kind, build) in specs.items():
+                    try:
+                        if mode == "selffit":
+                            s = fill_nan([clip_score(build(), ser(kind, i)) for i in te])
+                        else:
+                            rng = np.random.RandomState(seed)
+                            chunks, total = [], 0
+                            for i in rng.permutation(tr):
+                                chunks.append(ser(kind, i))
+                                total += chunks[-1].shape[0]
+                                if total >= CAP_TRAIN_FRAMES:
+                                    break
+                            # TimeSeriesOD exposes no random_state and builds its
+                            # base IForest with random_state=None, so the fit draws
+                            # from the global NumPy RNG. Without this the arm is not
+                            # reproducible: two runs of the same code and seeds
+                            # differed by up to 0.009 AUC on TempIF while the
+                            # deterministic TempSR agreed to four decimals.
+                            np.random.seed(seed)
+                            det = build()
+                            det.fit(np.vstack(chunks))
+                            s = fill_nan([score_with(det, ser(kind, i)) for i in te])
+                        m = mb.metrics(y[te], s, mb.CONTAMINATION)
+                    except Exception as e:
+                        m = dict(mb.NAN_METRICS, error=type(e).__name__)
+                    m.update({"detector": det_name}, **ctx)
+                    rec.append(m)
+        print("  group %s done" % g, flush=True)
+
+    runs = pd.DataFrame(rec)
+    runs.insert(0, "dataset", name)
     d = os.path.join(mb.RESULTS_DIR, name)
     os.makedirs(d, exist_ok=True)
-    out.to_csv(os.path.join(d, "temporal_metrics.csv"), index=False)
-    print("\n=== %s temporal (primary AUC-ROC) ===" % name, flush=True)
-    print(out[out["setting"] == "primary"][["detector", "auc_roc_mean"]].to_string(index=False),
-          flush=True)
+    runs.to_parquet(os.path.join(d, "rot_temporal_runs.parquet"), index=False)
+    out = mb.summarize_rotation(runs, name)
+    out.to_csv(os.path.join(d, "rot_temporal_metrics.csv"), index=False)
+    print("\n=== %s temporal, group-rotated (primary AUC-ROC) ===" % name, flush=True)
+    print(out[out["setting"] == "primary"]
+          [["detector", "auc_roc_mean", "auc_roc_fold_sd", "n_folds"]]
+          .to_string(index=False), flush=True)
+    return out
 
 
 def main():

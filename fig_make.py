@@ -4,9 +4,9 @@ deliberate palette. Saved as PDFs into RESULTS_DIR.
 
   fig_overview.pdf : focused, large normal-vs-anomaly mel-spectrogram gallery for
                      four sub-datasets (two designated-class, two organic-label),
-                     with a one-line caption carrying the pipeline and finding.
-  fig_transfer.pdf : quadrant scatter of the 25 detectors (color = family,
-                     size = rank shift); legends outside; labels decluttered.
+                     with a one-line caption carrying the evaluation pipeline.
+  fig_transfer.pdf : observed correlation versus reliability ceiling for all 21
+                     sub-dataset pairs; labels and legend are decluttered.
   fig_repr.pdf     : grouped bars per sub-dataset, handcrafted / PANNs / AST.
 """
 import os
@@ -111,7 +111,7 @@ def fig_transfer():
                     (row.ceiling, row.observed), textcoords="offset points",
                     xytext=(dx, dy), ha=ha, fontsize=6.4, color="#444444", zorder=5)
 
-    named = {("esc50", "urbansound8k"): (-6, 6, "right"),
+    named = {("esc50", "urbansound8k"): (-6, 12, "right"),
              ("mimii", "ravdess"): (7, -2, "left"),
              ("mimii", "nsynth"): (7, -2, "left"),
              ("esc50", "mimii"): (7, 2, "left")}
@@ -121,9 +121,11 @@ def fig_transfer():
             dx, dy, ha = named[key]
             lab(r, dx, dy, ha)
 
-    ax.annotate("agrees as closely as its orderings allow", (0.93, 0.93),
-                textcoords="offset points", xytext=(-4, -12), ha="right",
-                fontsize=7.4, style="italic", color="#777777", zorder=5)
+    ax.annotate("agrees as closely as its orderings allow", (0.62, 0.62),
+                textcoords="offset points", xytext=(0, 14), ha="center",
+                fontsize=7.4, style="italic", color="#777777", zorder=5,
+                bbox=dict(facecolor="white", edgecolor="none", alpha=0.9,
+                          pad=0.5))
     ax.annotate("PhysioNet pairs: ceiling zero,\nno correlation interpretable",
                 (0.0, -0.30), textcoords="offset points", xytext=(6, 0),
                 ha="left", va="center", fontsize=7.0, color="#777777", zorder=5)
@@ -136,7 +138,8 @@ def fig_transfer():
     ax.set_axisbelow(True)
     for sp in ("top", "right"):
         ax.spines[sp].set_visible(False)
-    ax.legend(loc="lower right", fontsize=8.2, frameon=False)
+    ax.legend(loc="upper left", bbox_to_anchor=(0.02, 0.98),
+              fontsize=8.2, frameon=False)
 
     fig.savefig(os.path.join(R, "fig_transfer.pdf"), bbox_inches="tight")
     plt.close(fig)
@@ -287,7 +290,7 @@ def fig_overview():
                         fontsize=8.2, color=lc, style="italic")
         bg.text(0.5, 0.028,
                 r"one 74-feature vector per clip  $\rightarrow$  25 PyOD detectors  "
-                r"$\rightarrow$  no significant rank transfer ($\rho = 0.12$, $p = 0.58$)",
+                r"$\rightarrow$  all leave-one-group-out folds",
                 ha="center", va="center", fontsize=8.8, color="#3A4654")
         fig.savefig(os.path.join(R, "fig_overview.pdf"), bbox_inches="tight")
         plt.close(fig)

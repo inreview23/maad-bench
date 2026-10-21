@@ -1,0 +1,15 @@
+dataset,stratum,n_total,n_anom,prevalence,stratum_type
+circor,CC2014,1202,214,0.17803660565723795,campaign
+circor,CC2015,1805,402,0.2227146814404432,campaign
+circor,AV,755,152,0.20132450331125828,location
+circor,MV,809,172,0.2126081582200247,location
+circor,PV,733,147,0.20054570259208732,location
+circor,Phc,4,2,0.5,location
+circor,TV,706,143,0.20254957507082152,location
+circor_rec,CC2014,1165,177,0.151931330472103,campaign
+circor_rec,CC2015,1725,322,0.18666666666666668,campaign
+circor_rec,AV,712,109,0.15308988764044945,location
+circor_rec,MV,777,140,0.18018018018018017,location
+circor_rec,PV,708,122,0.17231638418079095,location
+circor_rec,Phc,4,2,0.5,location
+circor_rec,TV,689,126,0.18287373004354138,location

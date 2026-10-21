@@ -1,0 +1,28 @@
+{
+  "representation": "ast",
+  "embedding_source": "circor_rec_ast_f8df96e8b8.parquet",
+  "raw_dims": 768,
+  "pca_dims": 64,
+  "pca_fitted": "per training fold",
+  "protocol": "leave-one-group-out",
+  "subsample_test": false,
+  "groups": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "settings": [
+    "primary",
+    "secondary"
+  ],
+  "elapsed_sec": 1136.2
+}

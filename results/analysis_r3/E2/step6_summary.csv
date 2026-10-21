@@ -1,0 +1,3 @@
+subdataset,n_clips,n_anomalies,folds,n_folds,settings,seeds,n_detectors,n_errors,primary_winner,primary_winner_auc,primary_winner_fold_sd,secondary_winner,secondary_winner_auc,secondary_winner_fold_sd,roster_median_auc_primary
+dcase_toycar,6459,1059,"[1, 2, 3, 4]",4,"['primary', 'secondary']","[0, 1, 2, 3, 4]",25,0,KDE,0.916405313618364,0.0459008571131062,ABOD,0.7675963185312242,0.0492709325299976,0.6597661219109332
+dcase_toyconveyor,6509,1110,"[1, 2, 3]",3,"['primary', 'secondary']","[0, 1, 2, 3, 4]",25,0,SOD,0.6365397459479459,0.0459324108916496,SOD,0.6355776880398981,0.0486827767605439,0.5328358150346814

@@ -37,7 +37,7 @@ DATA_DIR = os.path.join(HERE, "data")
 CACHE_DIR = os.path.join(HERE, "cache")
 RESULTS_DIR = os.path.join(HERE, "results")
 
-# ------------------------- pre-registered mappings -------------------------
+# ------------------------- mappings fixed in advance -------------------------
 DATASETS = {
     "esc50": dict(
         normal=["rain", "sea_waves", "crackling_fire", "crickets", "chirping_birds",
@@ -602,7 +602,7 @@ def run_rotation(df, feat, groups=None, settings=("primary", "secondary"),
                  contamination=None):
     """Leave-one-group-out over every native group.
 
-    The v1 protocol held out one pre-registered group per sub-dataset and never
+    The v1 protocol held out one group fixed in advance per sub-dataset and never
     rotated it, so the seeds shared a training set and the group axis carried no
     variance at all. Rotating shows how much the choice of held-out group was
     doing: on PhysioNet a single HBOS fit moves between 0.162 and 0.839 across

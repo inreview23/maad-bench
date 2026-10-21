@@ -16,7 +16,7 @@ safe to lead with.
      direction.
   3. The protocol. Rankings now come from every native group in rotation rather
      than one fixed held-out group per sub-dataset, so a partition ranking is no
-     longer hostage to which group was pre-registered.
+     longer hostage to which group was fixed in advance.
 
 Frame the result as transfer of detector SELECTION across benchmark partitions,
 not as causal proof: the organic side is confounded with domain.

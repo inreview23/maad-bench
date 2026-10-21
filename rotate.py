@@ -1,6 +1,6 @@
 """Group-rotated re-run driver for MAAD-Bench.
 
-The v1 protocol held out one pre-registered group per sub-dataset and never
+The v1 protocol held out one group fixed in advance per sub-dataset and never
 rotated it, and it subsampled the held-out anomalies down to a 10% test
 prevalence. That left three sub-datasets with fewer than ten test positives and
 left the group axis with no variance, so the reported standard deviations

@@ -1,0 +1,28 @@
+### Plain Statement of Empirical Patterns: Original 7 vs New 7 Sub-Datasets
+
+1. **Loudness baseline vs median detector:**
+   - On the original 7 (7 present), the loudness baseline beats the 25-detector median on 4 of 7 datasets:
+     ravdess (0.900 vs 0.881), mimii (0.698 vs 0.613), physionet (0.593 vs 0.473), icbhi (0.499 vs 0.455).
+     It fails to beat median on esc50 (0.654 vs 0.654), urbansound8k (0.636 vs 0.779), nsynth (0.494 vs 0.562).
+   - On the new 7 (7 present), the loudness baseline beats the median detector on 4 of 7 datasets:
+     cremad (0.832 vs 0.822), mimii_fan (0.789 vs 0.526), mimii_valve (0.548 vs 0.519), circor_rec (0.591 vs 0.560).
+     It fails to beat median on mimii_slider (0.527 vs 0.681), dcase_toycar (0.496 vs 0.660), dcase_toyconveyor (0.480 vs 0.533).
+
+2. **Best-to-median AUC gap:**
+   - On the original 7, the best-to-median gap ranges from 0.031 to 0.327, with a mean gap of 0.096.
+   - On the new 7, the best-to-median gap ranges from 0.011 to 0.354, with a mean gap of 0.146.
+   - On Cremad (designated-class emotional speech, 91 folds), the best-to-median gap is tiny (0.011), with 25 of 25 detectors achieving AUC between 0.771 and 0.833.
+   - In contrast, on machine sound datasets (mimii_fan gap: 0.354, dcase_toycar gap: 0.256), detector selection causes extreme performance divergence.
+
+3. **Leading detector families on MIMII machine types (4 types):**
+   - mimii: DIF (0.940); mimii_fan: DIF (0.880); mimii_slider: GMM (0.739); mimii_valve: COF (0.701).
+   - Across the MIMII machine types, winners do NOT come from a single detector family:
+     DIF (tree/isolation-based) leads on pump (0.940) and fan (0.880);
+     GMM (probabilistic density) leads on slider (0.739, where DIF is 0.551);
+     COF (connectivity-based distance) leads on valve (0.701, where DIF is 0.548 and GMM is 0.518).
+
+4. **Leading detector families on DCASE machine types (2 types):**
+   - dcase_toycar: KDE (0.916); dcase_toyconveyor: SOD (0.637).
+   - KDE (kernel density estimation) leads on toycar (0.916, where SOD is 0.763);
+     SOD (subspace outlier detection) leads on toyconveyor (0.637, where KDE is 0.544).
+     Thus, the winning detector family does NOT transfer across machine types within the DCASE domain.

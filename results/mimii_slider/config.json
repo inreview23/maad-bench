@@ -1,0 +1,20 @@
+{
+  "normal": [
+    "normal"
+  ],
+  "anomaly": [
+    "abnormal"
+  ],
+  "test_groups": [
+    6
+  ],
+  "contamination": 0.1,
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "n_features": 74
+}

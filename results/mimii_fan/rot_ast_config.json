@@ -1,0 +1,27 @@
+{
+  "representation": "ast",
+  "embedding_source": "mimii_fan_ast_145e2f84b5.parquet",
+  "raw_dims": 768,
+  "pca_dims": 64,
+  "pca_fitted": "per training fold",
+  "protocol": "leave-one-group-out",
+  "subsample_test": false,
+  "groups": [
+    0,
+    2,
+    4,
+    6
+  ],
+  "seeds": [
+    0,
+    1,
+    2,
+    3,
+    4
+  ],
+  "settings": [
+    "primary",
+    "secondary"
+  ],
+  "elapsed_sec": 1301.6
+}
